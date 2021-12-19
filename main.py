@@ -212,6 +212,8 @@ def main(config):
             
         print("Test Loss: ", test_loss)
         print("Test Accuracy: ", test_accuracy)
+    
+    torch.save(model.state_dict(), '/content/drive/MyDrive/save_model_'+model_type+str(datetime.now()))
 
     return
 
@@ -239,6 +241,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--data-dir", type=str, default="",
                         help="directory for data")
+    
+    parser.add_argument("--save-dir", type=str, default="",
+                    help="save model")
 
     args = parser.parse_args()
     main(args.__dict__)
