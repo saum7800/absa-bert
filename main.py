@@ -30,7 +30,8 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
     for batch in tqdm(dataloader):
         optimizer.zero_grad()
 
-        labels_pure = batch['labels_pure']
+        if model_type == "T5":
+            labels_pure = batch['labels_pure']
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
         labels = batch['labels'].to(device)
@@ -70,7 +71,8 @@ def eval_loop(model, dataloader, device, dataset_len, model_type):
 
     for batch in tqdm(dataloader):
 
-        labels_pure = batch['labels_pure']
+        if model_type == "T5":
+            labels_pure = batch['labels_pure']
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
         labels = batch['labels'].to(device)
