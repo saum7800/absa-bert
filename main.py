@@ -56,7 +56,7 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
         
 
     epoch_loss = running_loss / len(dataloader)
-    epoch_acc = running_corrects.double() / dataset_len
+    epoch_acc = running_corrects / dataset_len
 
     return epoch_loss, epoch_acc
 
@@ -97,7 +97,7 @@ def eval_loop(model, dataloader, device, dataset_len, model_type):
 
 
     epoch_loss = running_loss / len(dataloader)
-    epoch_accuracy = running_corrects.double() / dataset_len
+    epoch_accuracy = running_corrects / dataset_len
 
     return epoch_loss, epoch_accuracy
 
