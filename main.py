@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-from tqdm.auto import trange
+from tqdm import tqdm
 from transformers import AdamW, get_cosine_schedule_with_warmup, BertForSequenceClassification, BertConfig
 
 from dataset import ABSABertDataset
@@ -23,7 +23,7 @@ def train_loop(model, dataloader, optimizer, device, dataset_len):
     running_loss = 0.0
     running_corrects = 0
 
-    for batch in dataloader:
+    for batch in tqdm(dataloader):
         optimizer.zero_grad()
 
         input_ids = batch['input_ids'].to(device)
@@ -52,7 +52,7 @@ def eval_loop(model, dataloader, device, dataset_len):
     running_loss = 0.0
     running_corrects = 0
 
-    for batch in dataloader:
+    for batch in tqdm(dataloader):
 
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
@@ -84,7 +84,7 @@ def main(config):
 
     data_dir = config['data_dir']
 
-    for i in trange(number_of_runs):
+    for i in range(number_of_runs):
         train_df = pd.read_csv(data_dir+"/absa_train.csv")
         cv_df = pd.read_csv(data_dir+"/absa_cv.csv")
         test_df = pd.read_csv(data_dir+"/absa_test.csv")
@@ -124,7 +124,7 @@ def main(config):
         best_model_wts = copy.deepcopy(model.state_dict())
         best_loss = np.inf
 
-        for _ in trange(epochs, leave=False):
+        for _ in range(epochs):
             loss, accuracy = train_loop(model,
                                         train_dataloader,
                                         optimizer,
