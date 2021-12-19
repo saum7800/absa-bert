@@ -46,8 +46,9 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
         elif model_type == "T5":
             model_outputs = model.generate(input_ids)
             decoded_outputs = [tokenizer.decode(model_outputs[x]).lower() for x in range(len(labels))]
-            running_corrects = [0.0 if decoded_outputs[x].find(labels_pure[x])==-1 else 1.0 for x in range(len(labels))]
-            running_corrects = sum(running_corrects)
+            running_correct_sum = [0.0 if decoded_outputs[x].find(labels_pure[x])==-1 else 1.0 for x in range(len(labels))]
+            running_correct_sum = sum(running_correct_sum)
+            running_corrects += running_correct_sum
 
         running_loss += loss.item()
         loss.backward()
@@ -87,8 +88,9 @@ def eval_loop(model, dataloader, device, dataset_len, model_type):
         elif model_type == "T5":
             model_outputs = model.generate(input_ids)
             decoded_outputs = [tokenizer.decode(model_outputs[x]).lower() for x in range(len(labels))]
-            running_corrects = [0.0 if decoded_outputs[x].find(labels_pure[x])==-1 else 1.0 for x in range(len(labels))]
-            running_corrects = sum(running_corrects)
+            running_correct_sum = [0.0 if decoded_outputs[x].find(labels_pure[x])==-1 else 1.0 for x in range(len(labels))]
+            running_correct_sum = sum(running_correct_sum)
+            running_corrects += running_correct_sum
 
 
         running_loss += loss.item()
