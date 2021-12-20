@@ -1,4 +1,4 @@
-from sklearn import f1_score, accuracy_score, precision_score, recall_score
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 
 def flatten_list(unflat_list):
     return [item for sublist in unflat_list for item in sublist]
