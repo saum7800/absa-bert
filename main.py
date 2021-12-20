@@ -17,15 +17,12 @@ from dataset import ABSABertDataset, T5Dataset
 np.set_printoptions(precision=5)
 
 
-def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
+def train_loop(model, dataloader, optimizer, device, dataset_len, model_type, tokenizer):
     model.train()
 
     running_loss = 0.0
     final_preds = []
     final_labels = []
-
-    if model_type == "T5":
-        tokenizer = T5Tokenizer.from_pretrained('t5-small')
 
 
     for batch in tqdm(dataloader):
@@ -70,15 +67,12 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
     return epoch_loss, metrics
 
 
-def eval_loop(model, dataloader, device, dataset_len, model_type):
+def eval_loop(model, dataloader, device, dataset_len, model_type, tokenizer):
     model.eval()
 
     running_loss = 0.0
     final_preds = []
     final_labels = []
-
-    if model_type == "T5":
-        tokenizer = T5Tokenizer.from_pretrained('t5-small')
 
     for batch in tqdm(dataloader):
 
@@ -135,6 +129,8 @@ def main(config):
 
     data_dir = config['data_dir']
 
+    tokenizer = None
+
     for i in range(number_of_runs):
         train_df = pd.read_csv(data_dir+"/absa_train.csv")
         cv_df = pd.read_csv(data_dir+"/absa_cv.csv")
@@ -172,6 +168,7 @@ def main(config):
                 test_dataset, batch_size=batch_size, shuffle=True)
                 
             model = T5ForConditionalGeneration.from_pretrained("t5-small")
+            tokenizer = T5Tokenizer.from_pretrained("t5-small")
 
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model.to(device)
@@ -192,23 +189,25 @@ def main(config):
         best_loss = np.inf
 
         for _ in range(epochs):
+            model.load_state_dict(best_model_wts)
             loss, metrics = train_loop(model,
                                         train_dataloader,
                                         optimizer,
                                         device,
                                         len(train_dataset),
-                                        model_type)
+                                        model_type,
+                                        tokenizer)
             
             print("Train Loss: ", loss)
             print("Train metrics: ")
             pprint(metrics)
 
-            model.load_state_dict(best_model_wts)
             cv_loss, cv_metrics= eval_loop(model,
                                         cv_dataloader,
                                         device,
                                         len(cv_dataset),
-                                        model_type)
+                                        model_type,
+                                        tokenizer)
                 
             print("Validation Loss: ", cv_loss)
             print("Validation Metrics:")
@@ -222,7 +221,7 @@ def main(config):
             else:
                 best_model_wts = copy.deepcopy(model.state_dict())
                 early_stop_counter = 0
-                best_loss = loss
+                best_loss = cv_loss
 
             if early_stop_counter == early_stop_limit:
                 break
@@ -232,7 +231,8 @@ def main(config):
                                     test_dataloader,
                                     device,
                                     len(test_dataset),
-                                    model_type)
+                                    model_type,
+                                    tokenizer)
             
         print("Test Loss: ", test_loss)
         print("Test Metrics:")
