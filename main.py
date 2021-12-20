@@ -50,7 +50,7 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
             preds = [tokenizer.decode(model_outputs[x], skip_special_tokens=True).lower() for x in range(len(labels))]
             labels_pure = batch['labels_pure']
             final_preds.append(preds)
-            final_labels.append(labels.cpu().detach().numpy())
+            final_labels.append(labels_pure.cpu().detach().numpy())
             running_correct_sum = [1.0 if preds[x]==labels_pure[x] else 0.0 for x in range(len(labels))]
             running_correct_sum = sum(running_correct_sum)
             running_corrects += running_correct_sum
