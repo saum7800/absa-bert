@@ -41,13 +41,13 @@ class T5Dataset(torch.utils.data.Dataset):
         self.labels = torch.tensor(self.labels)
         self.labels[self.labels == self.tokenizer.pad_token_id] = -100
 
-        self.labels_pure = [label_map[x] for x in labels]
+        self.labels_nums = labels
 
 
     def __getitem__(self, idx):
         item = {key: torch.tensor(val[idx]) for key, val in self.input_encodings.items()}
         item['labels'] = self.labels[idx]
-        item['labels_pure'] = self.labels_pure[idx]
+        item['labels_nums'] = self.labels_nums[idx]
         return item
 
     def __len__(self):

@@ -46,9 +46,18 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
         elif model_type == "T5":
             model_outputs = model.generate(input_ids)
             preds = [tokenizer.decode(model_outputs[x], skip_special_tokens=True).lower() for x in range(len(labels))]
-            labels_pure = batch['labels_pure']
-            final_preds.append(preds)
-            final_labels.append(labels_pure)
+            preds_nums = []
+            for pred in preds:
+                if pred.find("positive") != -1:
+                    preds_nums.append(2)
+                elif pred.find("negative") != -1:
+                    preds_nums.append(0)
+                else:
+                    preds_nums.append(1)
+
+            labels_nums = batch['labels_nums']
+            final_preds.append(preds_nums)
+            final_labels.append(labels_nums)
 
         running_loss += loss.item()
         loss.backward()
@@ -88,9 +97,18 @@ def eval_loop(model, dataloader, device, dataset_len, model_type):
         elif model_type == "T5":
             model_outputs = model.generate(input_ids)
             preds = [tokenizer.decode(model_outputs[x], skip_special_tokens=True).lower() for x in range(len(labels))]
-            labels_pure = batch['labels_pure']
-            final_preds.append(preds)
-            final_labels.append(labels_pure)
+            preds_nums = []
+            for pred in preds:
+                if pred.find("positive") != -1:
+                    preds_nums.append(2)
+                elif pred.find("negative") != -1:
+                    preds_nums.append(0)
+                else:
+                    preds_nums.append(1)
+
+            labels_nums = batch['labels_nums']
+            final_preds.append(preds_nums)
+            final_labels.append(labels_nums)
 
 
         running_loss += loss.item()
