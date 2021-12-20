@@ -121,11 +121,9 @@ def eval_loop(model, dataloader, device, dataset_len, model_type, tokenizer, epo
 
     return epoch_loss, metrics
 
-def train_with_wandb(config):
-    run = wandb.init(project="absa-enterpret", entity="saumb7800")
-    wandb.config = config
-
+def train_with_wandb():
     with wandb.init() as run:
+        config = run.config
         pprint(config)
 
         model_type = config['model_type']
