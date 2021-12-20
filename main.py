@@ -11,7 +11,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AdamW, get_cosine_schedule_with_warmup, BertForSequenceClassification, BertConfig, T5ForConditionalGeneration, T5Tokenizer
-
+from metrics import get_metrics
 from dataset import ABSABertDataset, T5Dataset
 
 np.set_printoptions(precision=5)
@@ -21,7 +21,6 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
     model.train()
 
     running_loss = 0.0
-    running_corrects = 0
     final_preds = []
     final_labels = []
 
@@ -43,20 +42,13 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
             preds = torch.argmax(logits,dim=1)
             final_preds.append(preds.cpu().detach().numpy())
             final_labels.append(labels.cpu().detach().numpy())
-            running_corrects += torch.sum(preds == labels.data)
 
         elif model_type == "T5":
             model_outputs = model.generate(input_ids)
             preds = [tokenizer.decode(model_outputs[x], skip_special_tokens=True).lower() for x in range(len(labels))]
             labels_pure = batch['labels_pure']
             final_preds.append(preds)
-            final_labels.append(labels_pure.cpu().detach().numpy())
-            running_correct_sum = [1.0 if preds[x]==labels_pure[x] else 0.0 for x in range(len(labels))]
-            running_correct_sum = sum(running_correct_sum)
-            running_corrects += running_correct_sum
-        
-        print("final preds: ", final_preds)
-        print("final labels: ", final_labels)
+            final_labels.append(labels_pure)
 
         running_loss += loss.item()
         loss.backward()
@@ -64,16 +56,17 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
         
 
     epoch_loss = running_loss / len(dataloader)
-    epoch_acc = running_corrects / dataset_len
+    metrics = get_metrics(final_preds, final_labels)
 
-    return epoch_loss, epoch_acc
+    return epoch_loss, metrics
 
 
 def eval_loop(model, dataloader, device, dataset_len, model_type):
     model.eval()
 
     running_loss = 0.0
-    running_corrects = 0
+    final_preds = []
+    final_labels = []
 
     if model_type == "T5":
         tokenizer = T5Tokenizer.from_pretrained('t5-small')
@@ -89,24 +82,24 @@ def eval_loop(model, dataloader, device, dataset_len, model_type):
         if model_type == "BERT":
             logits = outputs[1]
             preds = torch.argmax(logits,dim=1)
-            running_corrects += torch.sum(preds == labels.data)
+            final_preds.append(preds.cpu().detach().numpy())
+            final_labels.append(labels.cpu().detach().numpy())
 
         elif model_type == "T5":
             model_outputs = model.generate(input_ids)
-            decoded_outputs = [tokenizer.decode(model_outputs[x]).lower() for x in range(len(labels))]
+            preds = [tokenizer.decode(model_outputs[x], skip_special_tokens=True).lower() for x in range(len(labels))]
             labels_pure = batch['labels_pure']
-            running_correct_sum = [0.0 if decoded_outputs[x].find(labels_pure[x])==-1 else 1.0 for x in range(len(labels))]
-            running_correct_sum = sum(running_correct_sum)
-            running_corrects += running_correct_sum
+            final_preds.append(preds)
+            final_labels.append(labels_pure)
 
 
         running_loss += loss.item()
 
 
     epoch_loss = running_loss / len(dataloader)
-    epoch_accuracy = running_corrects / dataset_len
+    metrics = get_metrics(final_preds, final_labels)
 
-    return epoch_loss, epoch_accuracy
+    return epoch_loss, metrics
 
 
 def main(config):
@@ -164,7 +157,7 @@ def main(config):
 
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model.to(device)
-        print(device)
+        print("device: ", device)
 
         optimizer = AdamW(model.parameters(),
                           lr=learning_rate)
@@ -181,7 +174,7 @@ def main(config):
         best_loss = np.inf
 
         for _ in range(epochs):
-            loss, accuracy = train_loop(model,
+            loss, metrics = train_loop(model,
                                         train_dataloader,
                                         optimizer,
                                         device,
@@ -189,12 +182,24 @@ def main(config):
                                         model_type)
             
             print("Train Loss: ", loss)
-            print("Train Accuracy: ", accuracy)
+            print("Train metrics: ")
+            pprint(metrics)
+
+            model.load_state_dict(best_model_wts)
+            cv_loss, cv_metrics= eval_loop(model,
+                                        cv_dataloader,
+                                        device,
+                                        len(cv_dataset),
+                                        model_type)
+                
+            print("Validation Loss: ", cv_loss)
+            print("Validation Metrics:")
+            pprint(cv_metrics)
 
             if scheduler is not None:
                 scheduler.step()
 
-            if loss >= best_loss:
+            if cv_loss >= best_loss:
                 early_stop_counter += 1
             else:
                 best_model_wts = copy.deepcopy(model.state_dict())
@@ -204,25 +209,16 @@ def main(config):
             if early_stop_counter == early_stop_limit:
                 break
 
-            model.load_state_dict(best_model_wts)
-            cv_loss, cv_accuracy= eval_loop(model,
-                                        cv_dataloader,
-                                        device,
-                                        len(cv_dataset),
-                                        model_type)
-                
-            print("Validation Loss: ", cv_loss)
-            print("Validation Accuracy: ", cv_accuracy)
-
         model.load_state_dict(best_model_wts)
-        test_loss, test_accuracy= eval_loop(model,
+        test_loss, test_metrics= eval_loop(model,
                                     test_dataloader,
                                     device,
                                     len(test_dataset),
                                     model_type)
             
         print("Test Loss: ", test_loss)
-        print("Test Accuracy: ", test_accuracy)
+        print("Test Metrics:")
+        pprint(test_metrics)
     
     torch.save(model.state_dict(), '/content/drive/MyDrive/save_model_'+model_type+str(datetime.now()))
 
