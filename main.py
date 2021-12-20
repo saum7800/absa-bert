@@ -22,6 +22,8 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
 
     running_loss = 0.0
     running_corrects = 0
+    final_preds = []
+    final_labels = []
 
     if model_type == "T5":
         tokenizer = T5Tokenizer.from_pretrained('t5-small')
@@ -30,8 +32,6 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
     for batch in tqdm(dataloader):
         optimizer.zero_grad()
 
-        if model_type == "T5":
-            labels_pure = batch['labels_pure']
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
         labels = batch['labels'].to(device)
@@ -41,14 +41,22 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type):
         if model_type == "BERT":
             logits = outputs[1]
             preds = torch.argmax(logits,dim=1)
+            final_preds.append(preds.cpu().detach().numpy())
+            final_labels.append(labels.cpu().detach().numpy())
             running_corrects += torch.sum(preds == labels.data)
 
         elif model_type == "T5":
             model_outputs = model.generate(input_ids)
-            decoded_outputs = [tokenizer.decode(model_outputs[x]).lower() for x in range(len(labels))]
-            running_correct_sum = [0.0 if decoded_outputs[x].find(labels_pure[x])==-1 else 1.0 for x in range(len(labels))]
+            preds = [tokenizer.decode(model_outputs[x], skip_special_tokens=True).lower() for x in range(len(labels))]
+            labels_pure = batch['labels_pure']
+            final_preds.append(preds)
+            final_labels.append(labels.cpu().detach().numpy())
+            running_correct_sum = [1.0 if preds[x]==labels_pure[x] else 0.0 for x in range(len(labels))]
             running_correct_sum = sum(running_correct_sum)
             running_corrects += running_correct_sum
+        
+        print("final preds: ", final_preds)
+        print("final labels: ", final_labels)
 
         running_loss += loss.item()
         loss.backward()
@@ -72,8 +80,6 @@ def eval_loop(model, dataloader, device, dataset_len, model_type):
 
     for batch in tqdm(dataloader):
 
-        if model_type == "T5":
-            labels_pure = batch['labels_pure']
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
         labels = batch['labels'].to(device)
@@ -88,6 +94,7 @@ def eval_loop(model, dataloader, device, dataset_len, model_type):
         elif model_type == "T5":
             model_outputs = model.generate(input_ids)
             decoded_outputs = [tokenizer.decode(model_outputs[x]).lower() for x in range(len(labels))]
+            labels_pure = batch['labels_pure']
             running_correct_sum = [0.0 if decoded_outputs[x].find(labels_pure[x])==-1 else 1.0 for x in range(len(labels))]
             running_correct_sum = sum(running_correct_sum)
             running_corrects += running_correct_sum
