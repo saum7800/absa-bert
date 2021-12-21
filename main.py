@@ -1,30 +1,29 @@
 import argparse
 import copy
-import os
-import pickle
 from datetime import datetime
 from pprint import pprint
 
 import numpy as np
 import pandas as pd
 import torch
+import wandb
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import AdamW, get_cosine_schedule_with_warmup, BertForSequenceClassification, BertConfig, T5ForConditionalGeneration, T5Tokenizer
-from metrics import get_metrics
+from transformers import AdamW, BertForSequenceClassification, BertConfig, \
+    T5ForConditionalGeneration, T5Tokenizer
+
 from dataset import ABSABertDataset, T5Dataset
-import wandb
+from metrics import get_metrics
 
 np.set_printoptions(precision=5)
 
 
-def train_loop(model, dataloader, optimizer, device, dataset_len, model_type, tokenizer, epoch_num):
+def train_loop(model, dataloader, optimizer, device, model_type, tokenizer, epoch_num):
     model.train()
 
     running_loss = 0.0
     final_preds = []
     final_labels = []
-
 
     for batch in tqdm(dataloader):
         optimizer.zero_grad()
@@ -37,7 +36,7 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type, to
 
         if model_type == "BERT":
             logits = outputs[1]
-            preds = torch.argmax(logits,dim=1)
+            preds = torch.argmax(logits, dim=1)
             final_preds.append(preds.cpu().detach().numpy())
             final_labels.append(labels.cpu().detach().numpy())
 
@@ -60,7 +59,6 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type, to
         running_loss += loss.item()
         loss.backward()
         optimizer.step()
-        
 
     epoch_loss = running_loss / len(dataloader)
     metrics = get_metrics(final_preds, final_labels, "train")
@@ -70,7 +68,7 @@ def train_loop(model, dataloader, optimizer, device, dataset_len, model_type, to
     return epoch_loss, metrics
 
 
-def eval_loop(model, dataloader, device, dataset_len, model_type, tokenizer, epoch_num):
+def eval_loop(model, dataloader, device, model_type, tokenizer, epoch_num):
     model.eval()
 
     running_loss = 0.0
@@ -87,7 +85,7 @@ def eval_loop(model, dataloader, device, dataset_len, model_type, tokenizer, epo
 
         if model_type == "BERT":
             logits = outputs[1]
-            preds = torch.argmax(logits,dim=1)
+            preds = torch.argmax(logits, dim=1)
             final_preds.append(preds.cpu().detach().numpy())
             final_labels.append(labels.cpu().detach().numpy())
 
@@ -107,9 +105,7 @@ def eval_loop(model, dataloader, device, dataset_len, model_type, tokenizer, epo
             final_preds.append(preds_nums)
             final_labels.append(labels_nums)
 
-
         running_loss += loss.item()
-
 
     epoch_loss = running_loss / len(dataloader)
     if epoch_num == -1:
@@ -120,6 +116,7 @@ def eval_loop(model, dataloader, device, dataset_len, model_type, tokenizer, epo
         metrics['cv_loss'] = epoch_loss
 
     return epoch_loss, metrics
+
 
 def train_with_wandb():
     with wandb.init() as run:
@@ -138,42 +135,43 @@ def train_with_wandb():
 
         tokenizer = None
 
-        
-        train_df = pd.read_csv(data_dir+"/absa_train.csv")
-        cv_df = pd.read_csv(data_dir+"/absa_cv.csv")
-        test_df = pd.read_csv(data_dir+"/absa_test.csv")
+        train_df = pd.read_csv(data_dir + "/absa_train.csv")
+        cv_df = pd.read_csv(data_dir + "/absa_cv.csv")
+        test_df = pd.read_csv(data_dir + "/absa_test.csv")
 
         if model_type == 'BERT':
-            train_dataset = ABSABertDataset(train_df['text'].tolist(), train_df['aspect'].tolist(), train_df['label'].tolist())
+            train_dataset = ABSABertDataset(train_df['text'].tolist(), train_df['aspect'].tolist(),
+                                            train_df['label'].tolist())
             train_dataloader = DataLoader(
                 train_dataset, batch_size=batch_size, shuffle=True)
-            
+
             cv_dataset = ABSABertDataset(cv_df['text'].tolist(), cv_df['aspect'].tolist(), cv_df['label'].tolist())
             cv_dataloader = DataLoader(
                 cv_dataset, batch_size=batch_size, shuffle=True)
-            
-            test_dataset = ABSABertDataset(test_df['text'].tolist(), test_df['aspect'].tolist(), test_df['label'].tolist())
+
+            test_dataset = ABSABertDataset(test_df['text'].tolist(), test_df['aspect'].tolist(),
+                                           test_df['label'].tolist())
             test_dataloader = DataLoader(
                 test_dataset, batch_size=batch_size, shuffle=True)
-                
 
             model_config = BertConfig.from_pretrained('bert-base-uncased')
             model_config.num_labels = 3
             model = BertForSequenceClassification(model_config)
 
         elif model_type == 'T5':
-            train_dataset = T5Dataset(train_df['text'].tolist(), train_df['aspect'].tolist(), train_df['label'].tolist())
+            train_dataset = T5Dataset(train_df['text'].tolist(), train_df['aspect'].tolist(),
+                                      train_df['label'].tolist())
             train_dataloader = DataLoader(
                 train_dataset, batch_size=batch_size, shuffle=True)
-            
+
             cv_dataset = T5Dataset(cv_df['text'].tolist(), cv_df['aspect'].tolist(), cv_df['label'].tolist())
             cv_dataloader = DataLoader(
                 cv_dataset, batch_size=batch_size, shuffle=True)
-            
+
             test_dataset = T5Dataset(test_df['text'].tolist(), test_df['aspect'].tolist(), test_df['label'].tolist())
             test_dataloader = DataLoader(
                 test_dataset, batch_size=batch_size, shuffle=True)
-                
+
             model = T5ForConditionalGeneration.from_pretrained("t5-small")
             tokenizer = T5Tokenizer.from_pretrained("t5-small")
 
@@ -182,7 +180,7 @@ def train_with_wandb():
         print("device: ", device)
 
         optimizer = AdamW(model.parameters(),
-                        lr=learning_rate)
+                          lr=learning_rate)
 
         # scheduler = get_cosine_schedule_with_warmup(
         #     optimizer, num_warmup_steps=10, num_training_steps=epochs)
@@ -198,26 +196,24 @@ def train_with_wandb():
         for epoch_num in range(epochs):
             model.load_state_dict(best_model_wts)
             loss, metrics = train_loop(model,
-                                        train_dataloader,
-                                        optimizer,
-                                        device,
-                                        len(train_dataset),
-                                        model_type,
-                                        tokenizer,
-                                        epoch_num)
-            
+                                       train_dataloader,
+                                       optimizer,
+                                       device,
+                                       model_type,
+                                       tokenizer,
+                                       epoch_num)
+
             print("Train Loss: ", loss)
             print("Train metrics: ")
             pprint(metrics)
 
-            cv_loss, cv_metrics= eval_loop(model,
-                                        cv_dataloader,
-                                        device,
-                                        len(cv_dataset),
-                                        model_type,
-                                        tokenizer,
-                                        epoch_num)
-                
+            cv_loss, cv_metrics = eval_loop(model,
+                                            cv_dataloader,
+                                            device,
+                                            model_type,
+                                            tokenizer,
+                                            epoch_num)
+
             print("Validation Loss: ", cv_loss)
             print("Validation Metrics:")
             pprint(cv_metrics)
@@ -229,7 +225,7 @@ def train_with_wandb():
 
             for k, v in cv_metrics.items():
                 wandb_logging_dict[k] = v
-            
+
             wandb.log(wandb_logging_dict)
 
             if scheduler is not None:
@@ -246,19 +242,19 @@ def train_with_wandb():
                 break
 
         model.load_state_dict(best_model_wts)
-        test_loss, test_metrics= eval_loop(model,
-                                    test_dataloader,
-                                    device,
-                                    len(test_dataset),
-                                    model_type,
-                                    tokenizer,
-                                    -1)
-        
+        test_loss, test_metrics = eval_loop(model,
+                                            test_dataloader,
+                                            device,
+                                            model_type,
+                                            tokenizer,
+                                            -1)
+
         print("Test Loss: ", test_loss)
         print("Test Metrics:")
         pprint(test_metrics)
         wandb.log(test_metrics)
-        torch.save(model.state_dict(), '/content/drive/MyDrive/save_model_'+model_type+str(datetime.now()))
+        torch.save(model.state_dict(), '/content/drive/MyDrive/save_model_' + model_type + str(datetime.now()))
+
 
 def main(config):
     pprint(config)
@@ -278,41 +274,43 @@ def main(config):
     tokenizer = None
 
     for i in range(number_of_runs):
-        train_df = pd.read_csv(data_dir+"/absa_train.csv")
-        cv_df = pd.read_csv(data_dir+"/absa_cv.csv")
-        test_df = pd.read_csv(data_dir+"/absa_test.csv")
+        train_df = pd.read_csv(data_dir + "/absa_train.csv")
+        cv_df = pd.read_csv(data_dir + "/absa_cv.csv")
+        test_df = pd.read_csv(data_dir + "/absa_test.csv")
 
         if model_type == 'BERT':
-            train_dataset = ABSABertDataset(train_df['text'].tolist(), train_df['aspect'].tolist(), train_df['label'].tolist())
+            train_dataset = ABSABertDataset(train_df['text'].tolist(), train_df['aspect'].tolist(),
+                                            train_df['label'].tolist())
             train_dataloader = DataLoader(
                 train_dataset, batch_size=batch_size, shuffle=True)
-            
+
             cv_dataset = ABSABertDataset(cv_df['text'].tolist(), cv_df['aspect'].tolist(), cv_df['label'].tolist())
             cv_dataloader = DataLoader(
                 cv_dataset, batch_size=batch_size, shuffle=True)
-            
-            test_dataset = ABSABertDataset(test_df['text'].tolist(), test_df['aspect'].tolist(), test_df['label'].tolist())
+
+            test_dataset = ABSABertDataset(test_df['text'].tolist(), test_df['aspect'].tolist(),
+                                           test_df['label'].tolist())
             test_dataloader = DataLoader(
                 test_dataset, batch_size=batch_size, shuffle=True)
-                
 
             model_config = BertConfig.from_pretrained('bert-base-uncased')
             model_config.num_labels = 3
             model = BertForSequenceClassification(model_config)
 
         elif model_type == 'T5':
-            train_dataset = T5Dataset(train_df['text'].tolist(), train_df['aspect'].tolist(), train_df['label'].tolist())
+            train_dataset = T5Dataset(train_df['text'].tolist(), train_df['aspect'].tolist(),
+                                      train_df['label'].tolist())
             train_dataloader = DataLoader(
                 train_dataset, batch_size=batch_size, shuffle=True)
-            
+
             cv_dataset = T5Dataset(cv_df['text'].tolist(), cv_df['aspect'].tolist(), cv_df['label'].tolist())
             cv_dataloader = DataLoader(
                 cv_dataset, batch_size=batch_size, shuffle=True)
-            
+
             test_dataset = T5Dataset(test_df['text'].tolist(), test_df['aspect'].tolist(), test_df['label'].tolist())
             test_dataloader = DataLoader(
                 test_dataset, batch_size=batch_size, shuffle=True)
-                
+
             model = T5ForConditionalGeneration.from_pretrained("t5-small")
             tokenizer = T5Tokenizer.from_pretrained("t5-small")
 
@@ -337,24 +335,22 @@ def main(config):
         for _ in range(epochs):
             model.load_state_dict(best_model_wts)
             loss, metrics = train_loop(model,
-                                        train_dataloader,
-                                        optimizer,
-                                        device,
-                                        len(train_dataset),
-                                        model_type,
-                                        tokenizer)
-            
+                                       train_dataloader,
+                                       optimizer,
+                                       device,
+                                       model_type,
+                                       tokenizer)
+
             print("Train Loss: ", loss)
             print("Train metrics: ")
             pprint(metrics)
 
-            cv_loss, cv_metrics= eval_loop(model,
-                                        cv_dataloader,
-                                        device,
-                                        len(cv_dataset),
-                                        model_type,
-                                        tokenizer)
-                
+            cv_loss, cv_metrics = eval_loop(model,
+                                            cv_dataloader,
+                                            device,
+                                            model_type,
+                                            tokenizer)
+
             print("Validation Loss: ", cv_loss)
             print("Validation Metrics:")
             pprint(cv_metrics)
@@ -373,18 +369,17 @@ def main(config):
                 break
 
         model.load_state_dict(best_model_wts)
-        test_loss, test_metrics= eval_loop(model,
-                                    test_dataloader,
-                                    device,
-                                    len(test_dataset),
-                                    model_type,
-                                    tokenizer)
-            
+        test_loss, test_metrics = eval_loop(model,
+                                            test_dataloader,
+                                            device,
+                                            model_type,
+                                            tokenizer)
+
         print("Test Loss: ", test_loss)
         print("Test Metrics:")
         pprint(test_metrics)
-    
-    torch.save(model.state_dict(), '/content/drive/MyDrive/save_model_'+model_type+str(datetime.now()))
+
+    torch.save(model.state_dict(), '/content/drive/MyDrive/save_model_' + model_type + str(datetime.now()))
 
     return
 
@@ -412,11 +407,10 @@ if __name__ == "__main__":
 
     parser.add_argument("--data-dir", type=str, default="",
                         help="directory for data")
-    
+
     parser.add_argument("--save-dir", type=str, default="",
-                    help="save model")
+                        help="save model")
 
     args = parser.parse_args()
     # main(args.__dict__)
-    train_with_wandb(args.__dict__)
-
+    # train_with_wandb(args.__dict__)
