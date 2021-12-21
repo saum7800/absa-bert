@@ -54,3 +54,22 @@ class T5Dataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.text)
+
+
+class LSTMAttDataset(torch.utils.data.Dataset):
+    def __init__(self, vect_text, vect_aspects, labels):
+        self.vect_text = vect_text
+        self.vect_aspects = vect_aspects
+        self.labels = labels
+
+    def __getitem__(self, idx):
+        item = {
+            'vect_text': torch.tensor(self.vect_text[idx]).float(),
+            'vect_aspects': torch.tensor(self.vect_aspects[idx]).float(),
+            'labels': torch.tensor(self.labels[idx])
+        }
+
+        return item
+
+    def __len__(self):
+        return len(self.labels)

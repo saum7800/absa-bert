@@ -12,8 +12,9 @@ from tqdm import tqdm
 from transformers import AdamW, BertForSequenceClassification, BertConfig, \
     T5ForConditionalGeneration, T5Tokenizer
 
-from dataset import ABSABertDataset, T5Dataset
+from dataset import ABSABertDataset, T5Dataset, LSTMAttDataset
 from metrics import get_metrics
+from model import LSTMAttModel
 
 np.set_printoptions(precision=5)
 
@@ -28,19 +29,23 @@ def train_loop(model, dataloader, optimizer, device, model_type, tokenizer, epoc
     for batch in tqdm(dataloader):
         optimizer.zero_grad()
 
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-        labels = batch['labels'].to(device)
-        outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
-        loss = outputs['loss']
-
         if model_type == "BERT":
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            labels = batch['labels'].to(device)
+            outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
+            loss = outputs[0]
             logits = outputs[1]
             preds = torch.argmax(logits, dim=1)
             final_preds.append(preds.cpu().detach().numpy())
             final_labels.append(labels.cpu().detach().numpy())
 
         elif model_type == "T5":
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            labels = batch['labels'].to(device)
+            outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
+            loss = outputs['loss']
             model_outputs = model.generate(input_ids)
             preds = [tokenizer.decode(model_outputs[x], skip_special_tokens=True).lower() for x in range(len(labels))]
             preds_nums = []
@@ -55,6 +60,17 @@ def train_loop(model, dataloader, optimizer, device, model_type, tokenizer, epoc
             labels_nums = batch['labels_nums']
             final_preds.append(preds_nums)
             final_labels.append(labels_nums)
+
+        elif model_type == "LSTMAtt":
+            vect_text = batch['vect_text'].to(device)
+            vect_aspects = batch['vect_aspects'].to(device)
+            labels = batch['labels'].to(device)
+            outputs = model(vect_text, vect_aspects, labels)
+            loss = outputs['loss']
+            logits = outputs['logits']
+            preds = torch.argmax(logits, dim=1)
+            final_preds.append(preds.cpu().detach().numpy())
+            final_labels.append(labels.cpu().detach().numpy())
 
         running_loss += loss.item()
         loss.backward()
@@ -77,19 +93,23 @@ def eval_loop(model, dataloader, device, model_type, tokenizer, epoch_num):
 
     for batch in tqdm(dataloader):
 
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-        labels = batch['labels'].to(device)
-        outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
-        loss = outputs['loss']
-
         if model_type == "BERT":
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            labels = batch['labels'].to(device)
+            outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
+            loss = outputs[0]
             logits = outputs[1]
             preds = torch.argmax(logits, dim=1)
             final_preds.append(preds.cpu().detach().numpy())
             final_labels.append(labels.cpu().detach().numpy())
 
         elif model_type == "T5":
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            labels = batch['labels'].to(device)
+            outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
+            loss = outputs['loss']
             model_outputs = model.generate(input_ids)
             preds = [tokenizer.decode(model_outputs[x], skip_special_tokens=True).lower() for x in range(len(labels))]
             preds_nums = []
@@ -104,6 +124,19 @@ def eval_loop(model, dataloader, device, model_type, tokenizer, epoch_num):
             labels_nums = batch['labels_nums']
             final_preds.append(preds_nums)
             final_labels.append(labels_nums)
+
+        elif model_type == "LSTMAtt":
+            vect_text = batch['vect_text'].to(device)
+            vect_aspects = batch['vect_aspects'].to(device)
+            labels = batch['labels'].to(device)
+            outputs = model(vect_text, vect_aspects, labels)
+            loss = outputs['loss']
+            logits = outputs['logits']
+            preds = torch.argmax(logits, dim=1)
+            final_preds.append(preds.cpu().detach().numpy())
+            final_labels.append(labels.cpu().detach().numpy())
+
+
 
         running_loss += loss.item()
 
@@ -135,9 +168,14 @@ def train_with_wandb():
 
         tokenizer = None
 
-        train_df = pd.read_csv(data_dir + "/absa_train.csv")
-        cv_df = pd.read_csv(data_dir + "/absa_cv.csv")
-        test_df = pd.read_csv(data_dir + "/absa_test.csv")
+        if model_type == "LSTMAtt":
+            train_df = pd.read_pickle(data_dir + "/absa-train-vect.pkl")
+            cv_df = pd.read_pickle(data_dir + "/absa-cv-vect.pkl")
+            test_df = pd.read_pickle(data_dir + "/absa-test-vect.pkl")
+        else:
+            train_df = pd.read_csv(data_dir + "/absa_train.csv")
+            cv_df = pd.read_csv(data_dir + "/absa_cv.csv")
+            test_df = pd.read_csv(data_dir + "/absa_test.csv")
 
         if model_type == 'BERT':
             train_dataset = ABSABertDataset(train_df['text'].tolist(), train_df['aspect'].tolist(),
@@ -174,6 +212,24 @@ def train_with_wandb():
 
             model = T5ForConditionalGeneration.from_pretrained("t5-small")
             tokenizer = T5Tokenizer.from_pretrained("t5-small")
+
+        elif model_type == "LSTMAtt":
+            train_dataset = LSTMAttDataset(train_df['vect_text'].tolist(), train_df['vect_aspect'].tolist(),
+                                           train_df['label'].tolist())
+            train_dataloader = DataLoader(
+                train_dataset, batch_size=batch_size, shuffle=True)
+
+            cv_dataset = LSTMAttDataset(cv_df['vect_text'].tolist(), cv_df['vect_aspect'].tolist(),
+                                        cv_df['label'].tolist())
+            cv_dataloader = DataLoader(
+                cv_dataset, batch_size=batch_size, shuffle=True)
+
+            test_dataset = LSTMAttDataset(test_df['vect_text'].tolist(), test_df['vect_aspect'].tolist(),
+                                          test_df['label'].tolist())
+            test_dataloader = DataLoader(
+                test_dataset, batch_size=batch_size, shuffle=True)
+
+            model = LSTMAttModel()
 
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model.to(device)
