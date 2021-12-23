@@ -102,15 +102,30 @@ def infer_lstmAtt(aspect, text):
         logits = model(text, aspect, [])
         preds = torch.argmax(logits, dim=1)
         if preds[0] == 0:
-            return "negative"
+            return {
+                "sentiment": "negative",
+                "response code": 200
+            }
         elif preds[0] == 1:
-            return "neutral"
+            return {
+                "sentiment": "neutral",
+                "response code": 200
+            }
         elif preds[0] == 2:
-            return "positive"
+            return {
+                "sentiment": "positive",
+                "response code": 200
+            }
         else:
-            return "Error"
+            return {
+                "response code": 500,
+                "error": "Error"
+            }
     except:
-        return "Error"
+        return {
+            "response code": 500,
+            "error": "Error"
+        }
 
 
 def infer_t5(aspect, text):
@@ -129,13 +144,25 @@ def infer_t5(aspect, text):
         model_outputs = model.generate(tokenized_input['input_ids'])
         output_text = tokenizer.decode(model_outputs[0], skip_special_tokens=True).lower()
         if output_text.find("positive") != -1:
-            return "positive"
+            return {
+                "sentiment": "positive",
+                "response code": 200
+            }
         elif output_text.find("negative") != -1:
-            return "negative"
+            return {
+                "sentiment": "negative",
+                "response code": 200
+            }
         else:
-            return "neutral"
+            return {
+                "sentiment": "neutral",
+                "response code": 200
+            }
     except:
-        return "Error"
+        return {
+            "response code": 500,
+            "error": "Error"
+        }
 
 
 @app.route('/predict', methods=['POST'])
@@ -145,9 +172,9 @@ def predict():
 
     output = infer_lstmAtt(aspect, text)
 
-    return render_template('index.html', prediction_text='Aspect Sentiment is: {}'.format(output))
+    return jsonify(output)
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
-    # app.run(host='0.0.0.0', port=8080)
+    # app.run(debug=True)
+    app.run(host='0.0.0.0', port=8080)
