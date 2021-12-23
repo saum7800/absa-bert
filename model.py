@@ -33,6 +33,9 @@ class LSTMAttModel(nn.Module):
         gamma = torch.matmul(alpha, beta_avg.transpose(1, 2))  # batch_size x (ctx) seq_len x 1
         weighted_sum = torch.matmul(torch.transpose(out_text, 1, 2), gamma).squeeze(-1)  # batch_size x 2*hidden_dim
         out = self.dense(weighted_sum)  # batch_size x polarity_dim
+        if type(labels) == list and len(labels) == 0:
+            return out
+
         loss = nn.CrossEntropyLoss()(out, labels)
 
         return {
