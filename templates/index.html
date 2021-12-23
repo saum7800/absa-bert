@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html >
+<head>
+  <title>ABSA Enterpret</title>
+</head>
+
+<body>
+    <form action="{{ url_for('predict')}}"method="post">
+    	<input type="text" name="aspect" placeholder="aspect" required="required" />
+        <input type="text" name="text" placeholder="text" required="required" />
+
+        <button type="submit">Predict</button>
+    </form>
+
+   <br>
+   <br>
+   {{ prediction_text }}
+
+</body>
+</html>
