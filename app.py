@@ -6,9 +6,11 @@ from transformers import T5Tokenizer, T5ForConditionalGeneration
 
 app = Flask(__name__)
 tokenizer = T5Tokenizer.from_pretrained('t5-small')
+print("loaded tokenizer")
 model = T5ForConditionalGeneration.from_pretrained('t5-small')
+print("loaded model")
 model.load_state_dict(torch.load('./save_model_T52021-12-20 18 30 54.119469.pt'))
-
+print("loaded weights")
 
 @app.route('/')
 def home():
@@ -51,4 +53,5 @@ def predict():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # app.run(debug=True)
+    app.run(host='0.0.0.0', port=8080)
