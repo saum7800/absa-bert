@@ -97,8 +97,8 @@ def home():
 
 def infer_lstmAtt(aspect, text):
     try:
-        aspect = torch.tensor([vectorize_sent(tokenize_sent(aspect, "aspect"))]).float()
-        text = torch.tensor([vectorize_sent(tokenize_sent(text, "text"))]).float()
+        aspect = torch.tensor(np.array([vectorize_sent(tokenize_sent(aspect, "aspect"))])).float()
+        text = torch.tensor(np.array([vectorize_sent(tokenize_sent(text, "text"))])).float()
         logits = model(text, aspect, [])
         preds = torch.argmax(logits, dim=1)
         if preds[0] == 0:
