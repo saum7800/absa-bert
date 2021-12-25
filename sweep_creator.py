@@ -15,6 +15,21 @@ sweep_config_t5 = {
     }
 }
 
+sweep_config_bert = {
+    'name': 'BERT sweep',
+    'method': 'grid',
+    'parameters': {
+        'model_type': {'value': 'BERT'},
+        'batch_size': {'value': 16},
+        'epochs': {'value': 10},
+        'num_runs': {'value': 1},
+        'early_stop': {'value': 10},
+        'learning_rate': {'values': [5e-5]},
+        'data_dir': {'value': '/content/absa-bert'},
+        'save_dir': {'value': '/content/drive/MyDrive'},
+    }
+}
+
 sweep_config_lstmatt = {
     'name': 'LSTMAtt sweep',
     'method': 'grid',
@@ -31,5 +46,5 @@ sweep_config_lstmatt = {
 }
 
 if __name__ == "__main__":
-    sweep_id = wandb.sweep(sweep_config_lstmatt, project="absa-enterpret", entity="saumb7800")
+    sweep_id = wandb.sweep(sweep_config_bert, project="absa-enterpret", entity="saumb7800")
     print(sweep_id)
